@@ -1,106 +1,95 @@
-# http://travis-ci.org/mpi4py/mpi4py
+addons:
+  apt:
+    sources: ['ubuntu-toolchain-r-test']
+    update: true
+    packages:
+      - gcc-9
+      - g++-9
+      - cmake
+      - build-essential
+      - python3
+      - python3-pip
+
+  homebrew:
+    update: true
+    packages:
+      - git
+      - llvm
+      - cmake
+      - openmpi
+      - python
 
 language: python
 python:
-  - 2.7
-  - 3.4
-  - 3.5
-  - 3.6
-  - 3.7
-
-os: linux
-dist: xenial
-sudo: required
+  - 3.8.3
 
 env:
   global:
+    - CIBW_SKIP="cp27-* pp*"
+    - CIBW_MANYLINUX_X86_64_IMAGE=manylinux2010
+    - CIBW_MANYLINUX_I686_IMAGE=manylinux2010
+    - CIBW_BEFORE_ALL_LINUX="bash {package}/scripts/cibuildwheel_build_deps_linux.sh"
+    - CIBW_ENVIRONMENT_LINUX="PATH=/usr/lib64/openmpi/bin:/usr/lib/openmpi/bin:\$PATH LD_LIBRARY_PATH=/usr/lib64/openmpi/lib:/usr/lib/openmpi/lib:\$LD_LIBRARY_PATH PYTHONPATH=/usr/lib64/python2.7/site-packages/openmpi:/usr/lib/python2.6/site-packages/openmpi:\$PYTHONPATH MANPATH=/usr/share/man/openmpi-x86_64:/usr/share/man/openmpi-i686:\$MANPATH"
+    - OMP_NUM_THREADS=1
+    - CC=gcc-9
+    - CXX=g++-9
     - HYDRA_LAUNCHER=fork
     - OMPI_MCA_plm=isolated
     - OMPI_MCA_rmaps_base_oversubscribe=true
-  matrix:
-    - MPI=mpich
     - MPI=openmpi
 
-matrix:
+jobs:
   include:
-    - os: osx
-      osx_image: xcode10
-      env: MPI=mpich PY=2
-      language: generic
-      python: 2
-    - os: osx
-      osx_image: xcode10
-      env: MPI=openmpi PY=2
-      language: generic
-      python: 2
-    - os: osx
-      osx_image: xcode10
-      env: MPI=mpich PY=3
-      language: generic
-      python: 3
-    - os: osx
-      osx_image: xcode10
-      env: MPI=openmpi PY=3
-      language: generic
-      python: 3
-    - python: pypy2.7-5.10.0
-      env: MPI=mpich
-    - python: pypy2.7-5.10.0
-      env: MPI=openmpi
-    - python: pypy3.5-5.10.0
-      env: MPI=mpich
-    - python: pypy3.5-5.10.0
-      env: MPI=openmpi
-  allow_failures:
-    - python: pypy2.7-5.10.0
-      env: MPI=mpich
-    - python: pypy2.7-5.10.0
-      env: MPI=openmpi
-    - python: pypy3.5-5.10.0
-      env: MPI=mpich
-    - python: pypy3.5-5.10.0
-      env: MPI=openmpi
-
-branches:
-  only:
-    - master
-    - maint
-    - ci/travis
+  - os: linux
+    arch: amd64
+    python: 3.8.3
+  - os: linux
+    arch: arm64
+    python: 3.8.3
+    before_install:
+      # work around cache dir owned by root (see https://travis-ci.community/t/7822/6)
+      - sudo chown -fR $USER:$GROUP ~/.cache/pip/wheels
+  - os: osx
+    osx_image: xcode11.6
+    language: shell
+    name: "Mac OS Python Homebrew"
+    env: CC=clang CXX=clang++
+    before_install:
+      - clang++ --version
 
 git:
   depth: 3
 
-cache:
-  apt: true
-
-addons:
-  apt:
-    update: true
-  homebrew:
-    update: true
 
 before_install:
-  - python$PY -m pip install Cython
-  - python$PY -m pip install numpy
+  - python3 -m pip install Cython numpy
   - ./conf/ci/travis-ci/install-mpi.sh $MPI
-  - python$PY --version
-  - python$PY -m cython --version
-  - python$PY -c "import numpy;print(numpy.__version__)"
+  - python3 --version
+  - python3 -m cython --version
+  - python3 -c "import numpy;print(numpy.__version__)"
   - if [[ "$MPI" == "mpich"   ]]; then mpichversion; fi
   - if [[ "$MPI" == "openmpi" ]]; then ompi_info;    fi
-install:
-  - python$PY -m pip -vvv install .
-
-before_script:
   - if [[ "$MPI" == "mpich" ]]; then P=2; else P=5; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]];  then P=2; fi
-script:
-  - mpiexec -n 1  python$PY $PWD/test/runtests.py -v
-  - mpiexec -n $P python$PY $PWD/test/runtests.py -v -f -e spawn
-  - mpiexec -n 1  python$PY $PWD/demo/futures/test_futures.py -v
-  - mpiexec -n $P python$PY $PWD/demo/futures/test_futures.py -v
-  - mpiexec -n 1  python$PY -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
-  - mpiexec -n $P python$PY -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
+  - python3 -m pip install -U wheel cibuildwheel twine
+  - bash $TRAVIS_BUILD_DIR/scripts/build_wheels.sh dist/ --skip-existing
 
-#notifications:
-#  email: false
+install:
+  - |
+      if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+        WHEEL_NAME="hiq_mpi4py-$(python3 setup.py --version)-cp37-cp37m-macosx_10_9_x86_64.whl"
+      else
+        WHEEL_NAME="hiq_mpi4py-$(python3 setup.py --version)-cp38-cp38-manylinux2010_x86_64.whl"
+      fi
+  - python3 -m pip install -v dist/$WHEEL_NAME
+  - python3 -m pip install twine
+  - python3 -m twine upload $@ -r pypi dist/*
+    
+script:
+  - mpiexec -v -n 1  python3 $PWD/test/runtests.py -v
+  - mpiexec -v -n $P python3 $PWD/test/runtests.py -v -f -e spawn
+  - mpiexec -v -n 1  python3 $PWD/demo/futures/test_futures.py -v
+  - mpiexec -v -n $P python3 $PWD/demo/futures/test_futures.py -v
+  - mpiexec -v -n 1  python3 -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
+  - mpiexec -v -n $P python3 -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
+  

@@ -34,7 +34,7 @@ sys.path.insert(0, os.path.join(topdir, 'conf'))
 # --------------------------------------------------------------------
 
 def name():
-    return 'mpi4py'
+    return 'hiq-mpi4py'
 
 def version():
     srcdir = os.path.join(topdir, 'src')
@@ -49,8 +49,7 @@ def description():
 name    = name()
 version = version()
 
-url      = 'https://bitbucket.org/mpi4py/%(name)s/' % vars()
-download = url + 'downloads/%(name)s-%(version)s.tar.gz' % vars()
+url      = 'https://github.com/Takishima/mpi4py'
 
 classifiers = """
 Development Status :: 5 - Production/Stable
@@ -66,8 +65,6 @@ Operating System :: Unix
 Programming Language :: C
 Programming Language :: Cython
 Programming Language :: Python
-Programming Language :: Python :: 2
-Programming Language :: Python :: 2.7
 Programming Language :: Python :: 3
 Programming Language :: Python :: 3.3
 Programming Language :: Python :: 3.4
@@ -103,7 +100,6 @@ metadata = {
     'description'      : __doc__.strip(),
     'long_description' : description(),
     'url'              : url,
-    'download_url'     : download,
     'classifiers'      : [c for c in classifiers.split('\n') if c],
     'keywords'         : [k for k in keywords.split('\n')    if k],
     'platforms'        : [p for p in platforms.split('\n')   if p],
