@@ -56,6 +56,28 @@ jobs:
     env: CC=clang CXX=clang++
     before_install:
       - clang++ --version
+  - os: windows
+    name: "Windows Python 3.8"
+    language: shell
+    before_install:
+      - unset CC CXX
+      - env
+      - choco install python3 --version 3.8.3
+      - ln -s /c/Python38/python.exe /c/Python38/python3.exe
+      - python3 -m pip install --upgrade pip
+      - choco install cmake git wget
+      - wget -nv https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisdk.msi
+      - wget -nv https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe
+      - powershell -Command 'Start-Process .\msmpisetup.exe -Wait -ArgumentList "-unattend","-full"'
+      - powershell -Command 'Start-Process msiexec.exe -Wait -ArgumentList "/quiet","/i","msmpisdk.msi"'
+      - python3 -m pip install Cython numpy
+      - python3 --version
+      - python3 -m cython --version
+      - python3 -c "import numpy;print(numpy.__version__)"
+      - P=2
+      - python3 -m pip install -U wheel cibuildwheel twine
+      - bash $TRAVIS_BUILD_DIR/scripts/build_wheels.sh dist/ --skip-existing
+    env: PATH="/c/Python38:/c/Python38/Scripts:/c/Program Files/Microsoft MPI/Bin:$PATH"
 
 git:
   depth: 3
@@ -78,18 +100,20 @@ install:
   - |
       if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
         WHEEL_NAME="hiq_mpi4py-$(python3 setup.py --version)-cp37-cp37m-macosx_10_9_x86_64.whl"
-      else
+      elif [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
         WHEEL_NAME="hiq_mpi4py-$(python3 setup.py --version)-cp38-cp38-manylinux2010_x86_64.whl"
+      else
+        WHEEL_NAME="hiq_mpi4py-$(python3 setup.py --version)-cp38-cp38-win_amd64.whl"
       fi
   - python3 -m pip install -v dist/$WHEEL_NAME
   - python3 -m pip install twine
   - python3 -m twine upload $@ -r pypi dist/*
     
 script:
-  - mpiexec -v -n 1  python3 $PWD/test/runtests.py -v
-  - mpiexec -v -n $P python3 $PWD/test/runtests.py -v -f -e spawn
-  - mpiexec -v -n 1  python3 $PWD/demo/futures/test_futures.py -v
-  - mpiexec -v -n $P python3 $PWD/demo/futures/test_futures.py -v
-  - mpiexec -v -n 1  python3 -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
-  - mpiexec -v -n $P python3 -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
+  - mpiexec -n 1  python3 $PWD/test/runtests.py -v
+  - mpiexec -n $P python3 $PWD/test/runtests.py -v -f -e spawn
+  - mpiexec -n 1  python3 $PWD/demo/futures/test_futures.py -v
+  - mpiexec -n $P python3 $PWD/demo/futures/test_futures.py -v
+  - mpiexec -n 1  python3 -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
+  - mpiexec -n $P python3 -m mpi4py.futures $PWD/demo/futures/test_futures.py -v
   
